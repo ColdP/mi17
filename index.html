@@ -585,6 +585,7 @@
                     <button class="ratio-btn active" onclick="setRatio(this, '16:9')">16:9</button>
                     <button class="ratio-btn" onclick="setRatio(this, '4:3')">4:3</button>
                     <button class="ratio-btn" onclick="setRatio(this, '3:4')">3:4</button>
+                    <button class="ratio-btn" onclick="setRatio(this, '9:16')">9:16</button>
                     <button class="ratio-btn" onclick="setRatio(this, '1:1')">1:1</button>
                 </div>
             </div>
@@ -603,14 +604,48 @@
                 </div>
                 
                 <div class="slider-wrapper">
-                    <div class="slider-header"><span>间距</span><span id="valGap">40</span></div>
-                    <input type="range" id="gapSlider" min="-50" max="200" value="40">
+                    <!-- Layout Mode Selector -->
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <div style="display:flex; align-items:center; gap:4px;">
+                             <span style="font-size:12px; color:var(--text-sub);">布局</span>
+                             <button class="icon-btn" onclick="toggleLayoutMode(this)" title="一键切换布局" style="padding: 4px; border-radius: 4px; background: #f0f0f0;">
+                                <svg class="icon-svg" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="M16,17.01V10H22V17.01H16M14,17.01V10H8V17.01H14M16,7.99l4-4V2H2V7.99L16,7.99M22,20V22H2V20H22Z"/></svg>
+                             </button>
+                        </div>
+                        <select id="layoutModeSelect" class="res-select" style="font-size:12px; padding:4px 0;">
+                            <option value="parallel">水平并排</option>
+                            <option value="stacked">前后叠放</option>
+                        </select>
+                    </div>
+                     <!-- Front/Back Stacking Order -->
+                    <div id="stackingOrderControl" style="display:none; justify-content:space-between; align-items:center; margin-bottom:10px; border-top: 1px dashed #eee; padding-top: 8px;">
+                        <span style="font-size:12px; color:var(--text-sub);">层级</span>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span style="font-size:11px; color:#999;">背面在前</span>
+                            <label class="switch">
+                                <input type="checkbox" id="backInFrontCheck">
+                                <span class="slider-toggle"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="slider-header"><span id="lblGap">间距</span><span id="valGap">0</span></div>
+                    <input type="range" id="gapSlider" min="-100" max="400" value="0">
                     
-                    <div class="slider-header"><span>缩放</span><span id="valScale">0.8</span></div>
-                    <input type="range" id="scaleSlider" min="0.4" max="1.1" step="0.01" value="0.8">
+                    <div class="slider-header"><span>整体缩放</span><span id="valScale">0.8</span></div>
+                    <input type="range" id="scaleSlider" min="0.1" max="4.0" step="0.01" value="0.8">
                     
+                    <div class="slider-header"><span>正面缩放</span><span id="valScaleFront">1.0</span></div>
+                    <input type="range" id="scaleFrontSlider" min="0.1" max="4.0" step="0.05" value="1.0">
+                    
+                    <div class="slider-header"><span>背面缩放</span><span id="valScaleBack">1.0</span></div>
+                    <input type="range" id="scaleBackSlider" min="0.1" max="4.0" step="0.05" value="1.0">
+                    
+                    <div class="slider-header"><span>水平错位</span><span id="valXOffset">0</span></div>
+                    <input type="range" id="xOffsetSlider" min="-800" max="800" value="0">
+
                     <div class="slider-header"><span>垂直错位</span><span id="valStagger">0</span></div>
-                    <input type="range" id="staggerSlider" min="-200" max="200" value="0">
+                    <input type="range" id="staggerSlider" min="-800" max="800" value="0">
 
                     <div class="slider-header"><span>整体垂直位置</span><span id="valGlobalY">0</span></div>
                     <input type="range" id="globalYSlider" min="-400" max="400" value="0">
@@ -773,6 +808,7 @@
             '16:9': { w: 1920, h: 1080 },
             '4:3': { w: 1600, h: 1200 },
             '3:4': { w: 1200, h: 1600 },
+            '9:16': { w: 1080, h: 1920 },
             '1:1': { w: 1200, h: 1200 }
         };
         
@@ -781,10 +817,15 @@
             resolutionMultiplier: 1.0,
             
             // Layout
-            gap: 40,
+            layoutMode: 'parallel', // 'parallel' or 'stacked'
+            gap: 0,
             scale: 0.8,
+            scaleFront: 1.0, // New Front Scale
+            scaleBack: 1.0, // New Back Scale
+            xOffset: 0,
             stagger: 0, 
             deviceYOffset: 0, 
+            backInFront: false,
             shadowLevel: 2,
             shadowColor: '#000000', 
             blurLevel: 60,
@@ -820,6 +861,20 @@
         inputBack.addEventListener('change', (e) => handleImageUpload(e, 'back'));
 
         // Basic Sliders
+        document.getElementById('layoutModeSelect').addEventListener('change', (e) => {
+            config.layoutMode = e.target.value;
+            // Update gap label
+            document.getElementById('lblGap').innerText = config.layoutMode === 'parallel' ? '间距' : '水平偏移';
+             // Show/Hide Stacking Order
+            document.getElementById('stackingOrderControl').style.display = config.layoutMode === 'stacked' ? 'flex' : 'none';
+            drawCanvas();
+        });
+        document.getElementById('backInFrontCheck').addEventListener('change', (e) => {
+            config.backInFront = e.target.checked;
+            drawCanvas();
+        });
+
+
         document.getElementById('gapSlider').addEventListener('input', (e) => {
             config.gap = parseInt(e.target.value);
             document.getElementById('valGap').innerText = config.gap;
@@ -828,6 +883,21 @@
         document.getElementById('scaleSlider').addEventListener('input', (e) => {
             config.scale = parseFloat(e.target.value);
             document.getElementById('valScale').innerText = config.scale;
+            drawCanvas();
+        });
+        document.getElementById('scaleFrontSlider').addEventListener('input', (e) => {
+            config.scaleFront = parseFloat(e.target.value);
+            document.getElementById('valScaleFront').innerText = config.scaleFront;
+            drawCanvas();
+        });
+        document.getElementById('scaleBackSlider').addEventListener('input', (e) => {
+            config.scaleBack = parseFloat(e.target.value);
+            document.getElementById('valScaleBack').innerText = config.scaleBack;
+            drawCanvas();
+        });
+        document.getElementById('xOffsetSlider').addEventListener('input', (e) => {
+            config.xOffset = parseInt(e.target.value);
+            document.getElementById('valXOffset').innerText = config.xOffset;
             drawCanvas();
         });
         document.getElementById('staggerSlider').addEventListener('input', (e) => {
@@ -985,6 +1055,17 @@
             updateCanvasSize();
             drawCanvas();
         }
+        
+        function toggleLayoutMode(btn) {
+            const select = document.getElementById('layoutModeSelect');
+            const currentMode = select.value;
+            const newMode = currentMode === 'parallel' ? 'stacked' : 'parallel';
+            select.value = newMode;
+            
+            // Trigger change event manually
+            const event = new Event('change');
+            select.dispatchEvent(event);
+        }
 
         function setPresetText(text) {
             document.getElementById('modelNameInput').value = text;
@@ -1122,32 +1203,53 @@
 
             // 2. Calculate Device Positioning (Scalable)
             // config.scale is user preference (0.8 etc), 's' is resolution multiplier
-            let drawHeight = (canvas.height * config.scale); // height naturally scales with canvas height
-            
+            // For 9:16 ratio, we need to scale devices smaller
+            let baseScale = config.scale;
+            if(config.ratio === '9:16') {
+                baseScale *= 0.75; // Scale down for portrait
+            }
+            let drawHeight = (canvas.height * baseScale); 
+
             // To maintain aspect of sliders relative to canvas size,
             // we use 's' for gap, offsets etc which are defined in '1080p pixels'
             const scaledGap = config.gap * s;
             const scaledStagger = config.stagger * s;
             const scaledDeviceY = config.deviceYOffset * s;
+            const scaledXOffset = config.xOffset * s;
 
             let w1 = 0, h1_scaled = 0, w2 = 0, h2_scaled = 0;
 
             if (config.autoAlign) {
-                if (imgFront) { h1_scaled = drawHeight; w1 = imgFront.width * (drawHeight / imgFront.height); }
-                if (imgBack) { h2_scaled = drawHeight; w2 = imgBack.width * (drawHeight / imgBack.height); }
+                // If autoAlign, heights are matched to drawHeight first, then applied individual scale
+                if (imgFront) { 
+                    const baseH = drawHeight;
+                    const baseW = imgFront.width * (drawHeight / imgFront.height);
+                    h1_scaled = baseH * config.scaleFront;
+                    w1 = baseW * config.scaleFront;
+                }
+                if (imgBack) { 
+                    const baseH = drawHeight;
+                    const baseW = imgBack.width * (drawHeight / imgBack.height);
+                    h2_scaled = baseH * config.scaleBack;
+                    w2 = baseW * config.scaleBack;
+                }
             } else {
                 let scaleFactor = 1;
                 const h1 = imgFront ? imgFront.height : 0;
                 const h2 = imgBack ? imgBack.height : 0;
                 const maxSrcHeight = Math.max(h1, h2);
+                
                 if (maxSrcHeight > 0) scaleFactor = drawHeight / maxSrcHeight;
-                if (imgFront) { w1 = imgFront.width * scaleFactor; h1_scaled = imgFront.height * scaleFactor; }
-                if (imgBack) { w2 = imgBack.width * scaleFactor; h2_scaled = imgBack.height * scaleFactor; }
+                
+                if (imgFront) { 
+                    w1 = imgFront.width * scaleFactor * config.scaleFront; 
+                    h1_scaled = imgFront.height * scaleFactor * config.scaleFront; 
+                }
+                if (imgBack) { 
+                    w2 = imgBack.width * scaleFactor * config.scaleBack; 
+                    h2_scaled = imgBack.height * scaleFactor * config.scaleBack; 
+                }
             }
-
-            const totalWidth = w1 + w2 + scaledGap;
-            const startX = (canvas.width - totalWidth) / 2;
-            const centerY = canvas.height / 2;
 
             // 3. Setup Shadow
             if (config.shadowLevel > 0) {
@@ -1161,15 +1263,52 @@
             }
 
             const staggerOffset = scaledStagger / 2;
+            const centerY = canvas.height / 2;
+            
+            // Fix: Horizontal Stagger (Move devices apart relative to center)
+            // Left moves negative offset, Right moves positive offset
+            const staggerX = scaledXOffset / 2;
 
-            if (imgFront) {
-                const y = centerY - (h1_scaled / 2) - staggerOffset + scaledDeviceY;
-                ctx.drawImage(imgFront, startX, y, w1, h1_scaled);
-            }
-            if (imgBack) {
-                const x = imgFront ? (startX + w1 + scaledGap) : (canvas.width - w2) / 2;
-                const y = centerY - (h2_scaled / 2) + staggerOffset + scaledDeviceY;
-                ctx.drawImage(imgBack, x, y, w2, h2_scaled);
+            if (config.layoutMode === 'stacked') {
+                // Stacked Logic
+                // Front moves Left, Back moves Right (Relative to gap)
+                // Use scaledXOffset purely as stagger
+                
+                const frontX = (canvas.width - w1) / 2 - staggerX;
+                const frontY = centerY - (h1_scaled / 2) - staggerOffset + scaledDeviceY;
+                
+                // Back's base position is offset by Gap, then staggered Right
+                const backX = (canvas.width - w2) / 2 + scaledGap + staggerX; 
+                const backY = centerY - (h2_scaled / 2) + staggerOffset + scaledDeviceY;
+
+                if (config.backInFront) {
+                    // Draw Front first, then Back
+                    if (imgFront) ctx.drawImage(imgFront, frontX, frontY, w1, h1_scaled);
+                    if (imgBack) ctx.drawImage(imgBack, backX, backY, w2, h2_scaled);
+                } else {
+                    // Draw Back first, then Front
+                    if (imgBack) ctx.drawImage(imgBack, backX, backY, w2, h2_scaled);
+                    if (imgFront) ctx.drawImage(imgFront, frontX, frontY, w1, h1_scaled);
+                }
+
+            } else {
+                // Parallel Logic
+                // Move devices relative to calculated center
+                // Re-calculate total width based on scaled widths + gap
+                const totalWidth = w1 + w2 + scaledGap;
+                const startX = (canvas.width - totalWidth) / 2;
+
+                if (imgFront) {
+                    const y = centerY - (h1_scaled / 2) - staggerOffset + scaledDeviceY;
+                    // Front is Left Device -> Move Left
+                    ctx.drawImage(imgFront, startX - staggerX, y, w1, h1_scaled);
+                }
+                if (imgBack) {
+                    const x = imgFront ? (startX + w1 + scaledGap) : (canvas.width - w2) / 2;
+                    const y = centerY - (h2_scaled / 2) + staggerOffset + scaledDeviceY;
+                    // Back is Right Device -> Move Right
+                    ctx.drawImage(imgBack, x + staggerX, y, w2, h2_scaled);
+                }
             }
 
             // Reset Shadow for Text
@@ -1191,10 +1330,35 @@
                 }
 
                 let textX = canvas.width / 2; 
-                if (config.textAlign === 'left') {
-                    textX = startX; 
-                } else if (config.textAlign === 'right') {
-                    textX = startX + totalWidth;
+                
+                if (config.layoutMode === 'parallel') {
+                     const totalWidth = w1 + w2 + scaledGap;
+                     const startX = (canvas.width - totalWidth) / 2; // Original startX without stagger
+                     // For text alignment, we probably want to align to the visual block of devices.
+                     // The visual block shifts with staggerX.
+                     // Left device moves left by staggerX, Right device moves right by staggerX.
+                     // So the "start" of the visual block moves left by staggerX.
+                     // The "end" of the visual block moves right by staggerX.
+                     // Total width effectively increases by 2*staggerX.
+                     
+                     if (config.textAlign === 'left') {
+                        textX = startX - staggerX; 
+                    } else if (config.textAlign === 'right') {
+                        textX = startX + totalWidth + staggerX;
+                    }
+                } else {
+                    // Stacked: align relative to center mainly
+                    const groupCenterX = canvas.width / 2; // Stacked is centered
+                    // We need an estimated width for alignment
+                    const estimatedWidth = Math.max(w1, w2) + Math.abs(scaledGap) + Math.abs(2*staggerX); 
+                    
+                    if (config.textAlign === 'left') {
+                        textX = groupCenterX - (estimatedWidth/2); 
+                    } else if (config.textAlign === 'right') {
+                        textX = groupCenterX + (estimatedWidth/2);
+                    } else {
+                        textX = groupCenterX;
+                    }
                 }
                 
                 // Scale offsets
